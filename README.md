@@ -39,7 +39,7 @@ Chrome 网页、漫画和图片翻译插件，目前支持 Windows 10/11 x64。
 3. 解压 Chrome 扩展包，打开 `chrome://extensions`，开启「开发者模式」，点击「加载已解压的扩展程序」，选择包含 `manifest.json` 的文件夹。以后不要删除这个文件夹。
 4. 打开漫译设置，选择服务，点击「保存并测试连接」。刷新要翻译的网页。
 
-仓库当前为 private，下载需要登录有访问权限的 GitHub 账号。请从 Releases 下载安装包；「Code → Download ZIP」下载的是源码。
+请从 Releases 下载安装包；「Code → Download ZIP」下载的是源码。
 
 ## 怎么用
 

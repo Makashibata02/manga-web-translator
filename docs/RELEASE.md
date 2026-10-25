@@ -1,6 +1,6 @@
 # 上传与维护发布
 
-源码提交到 main，安装包和引擎单独通过 Release 分发。当前仓库保持 private；后续公开需要另行确认。不要将 GitHub Token 写入插件、下载地址或发布包。
+源码提交到 main，安装包和引擎单独通过 Release 分发。源码和 Release 附件公开下载。不要将 GitHub Token 写入插件、下载地址或发布包。
 
 ## 源码
 
