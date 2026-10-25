@@ -1,0 +1,70 @@
+import {chromium} from 'playwright';
+import {build} from 'esbuild';
+import {mkdir,writeFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+
+const compiled=await build({stdin:{contents:"import {WebTranslation} from './extension/web.ts';window.web=new WebTranslation((text,state)=>window.feedback={text,state});",resolveDir:process.cwd()},bundle:true,write:false,format:'iife',target:'chrome120'});
+const browser=await chromium.launch({executablePath:process.env.MWT_BROWSER||chromium.executablePath(),headless:true});
+const page=await browser.newPage({viewport:{width:1350,height:1000}});const checks=[];
+await mkdir('.local',{recursive:true});
+try{
+ await page.route('https://mwt.example/**',r=>r.fulfill({contentType:'text/html',body:`<!doctype html><meta charset=utf-8><title>Dynamic lifecycle fixture</title><style>body{font:16px/1.5 Arial;margin:24px}main{max-width:760px}.hidden{display:none}#CybotCookiebotDialog{position:fixed;right:12px;bottom:12px;width:400px;background:white;border:1px solid #aaa;padding:16px}button,[role=tab]{margin:5px;padding:6px 12px}#scroller{height:150px;overflow:auto;width:700px}</style><aside style="position:fixed;right:5px;top:5px;width:200px"><nav><ul><li><a id=toc-text href=#regular>Instance methods</a></li><li><a id=code-label href=#regular><code>disconnect()</code></a></li></ul></nav></aside><main><h1>Public news fixture</h1><details id=compound open><summary style="display:flex;gap:10px"><span>Baseline</span><span style="font-size:11px;background:green;color:white">Widely available</span></summary><p>Expanded technical explanation remains readable below the summary.</p></details><div class=paywall><p id=visible>Readable article text remains visible after the content has loaded.</p><p id=hidden class=hidden>This previously hidden article paragraph should wait until revealed.</p></div><div id=raw>A framework can render a complete paragraph using a div with an <a id=source-link href=#target>inline link</a> and emphasis.</div><p id=regular>Ordinary semantic paragraphs still translate normally.</p><pre id=code>const source = 'Do not translate code';</pre><input id=secret value="private-input-must-never-send"><div id=shadow-host></div><div id=scroller><div style=height:3300px></div><p id=inner>Newly scrolled inner container paragraph is readable here.</p></div><p id=tail>Article tail remains available.</p></main><div id=portal>Portal paragraphs outside main remain readable and should be discovered.</div>`}));
+ await page.goto('https://mwt.example/start');
+ await page.evaluate(()=>{
+  window.calls=[];window.clicks=0;window.cookieClicks=0;window.hold=false;window.pending=[];
+  document.querySelector('#source-link').addEventListener('click',e=>{e.preventDefault();window.clicks++;});
+  window.chrome={runtime:{sendMessage:async m=>{window.calls.push(m);if(m.type==='webStart')return {ok:true,value:{id:'same-tab-budget',profile:{provider:'tencent'},target:'zh-CN'}};if(m.type==='text'){if(window.hold)await new Promise(r=>window.pending.push(r));return {ok:true,value:Object.fromEntries(Object.entries(m.blocks).map(([k,t])=>[k,'中文译文 '+t]))};}throw Error('Unexpected RPC '+m.type);}}};
+ });
+ await page.addScriptTag({content:compiled.outputFiles[0].text});
+ assert.equal(await page.evaluate(()=>window.calls.length),0);checks.push('manualStartOnly');
+ await page.evaluate(()=>window.web.retry());
+ for(const id of ['visible','raw','regular','portal'])await page.locator('#'+id+' [data-mwt=translation]').waitFor();
+ assert.equal(await page.locator('#hidden [data-mwt]').count(),0);assert.equal(await page.locator('#code').textContent(),"const source = 'Do not translate code';");
+ assert.ok(!await page.evaluate(()=>window.calls.some(m=>m.type==='text'&&Object.values(m.blocks).some(t=>t.includes('private-input-must-never-send')))));
+ await page.locator('#source-link').click();assert.equal(await page.evaluate(()=>window.clicks),1);
+ checks.push('visibleContainerNameNotExcluded','frameworkDivWithInlineLink','portalOutsideMain','hiddenWaits','codeAndInputPreserved','originalLinkEvent');
+ await page.locator('#toc-text [data-mwt=translation]').waitFor();await page.locator('#compound summary [data-mwt=translation]').waitFor();
+ assert.equal(await page.locator('#code-label [data-mwt=translation]').count(),0);
+ assert.equal(await page.locator('#toc-text [data-mwt=translation]').evaluate(e=>getComputedStyle(e).display),'block');
+ assert.equal(await page.locator('#toc-text').evaluate(e=>getComputedStyle(e).display),'block');
+ assert.equal(await page.locator('#compound summary [data-mwt=translation]').evaluate(e=>getComputedStyle(e).color),await page.locator('#compound summary').evaluate(e=>getComputedStyle(e).color));
+ assert.ok(await page.locator('#compound summary').evaluate(e=>{const t=e.querySelector('[data-mwt]');return t.getBoundingClientRect().top>=[...e.children].filter(n=>n!==t).reduce((v,n)=>Math.max(v,n.getBoundingClientRect().bottom),0);}));
+ checks.push('codeOnlyNavigationPreserved','plainNavigationStacksWithoutFlexSplit','summaryUsesContainerColor','summaryTranslationHasOwnRow');
+
+ await page.evaluate(()=>document.querySelector('#hidden').classList.remove('hidden'));await page.locator('#hidden [data-mwt=translation]').waitFor();checks.push('attributeOnlyReveal');
+ await page.evaluate(()=>{
+  const portal=document.createElement('section');portal.id='CybotCookiebotDialog';portal.setAttribute('role','region');
+  portal.innerHTML='<h2>Privacy choices</h2><div id=cookie-text>We use cookies to provide content and measure traffic. Choose which cookies you want.</div><ul><li><a role=tab id=consent-tab href=#>Consent</a></li><li><a role=tab id=details-tab href=#>Details</a></li></ul><ul><li><div id=cookie-details hidden>Necessary cookies help the website remain usable while optional cookies are your choice.</div></li></ul><div><button id=deny>Deny</button><button id=allow>Allow all</button></div>';
+  document.body.append(portal);window.originalDeny=portal.querySelector('#deny');
+  portal.querySelector('#deny').onclick=()=>window.cookieClicks++;
+  portal.querySelector('#details-tab').onclick=e=>{e.preventDefault();portal.querySelector('#cookie-details').hidden=false;};
+ });
+ for(const id of ['cookie-text','deny','allow','consent-tab','details-tab'])await page.locator('#'+id+' [data-mwt=translation]').waitFor();
+ assert.equal(await page.locator('#cookie-details [data-mwt]').count(),0);assert.equal(await page.evaluate(()=>window.cookieClicks),0);
+ await page.locator('#details-tab').click();await page.locator('#cookie-details [data-mwt=translation]').waitFor();assert.equal(await page.locator('#details-tab [data-mwt=translation]').count(),1);assert.equal(await page.locator('#consent-tab [data-mwt=translation]').count(),1);checks.push('nestedTabHasOneTranslation','divInsideStructuralList');
+ await page.locator('#deny [data-mwt=translation]').click();assert.equal(await page.evaluate(()=>window.cookieClicks),1);assert.equal(await page.evaluate(()=>document.querySelector('#deny')===window.originalDeny),true);
+ assert.equal(await page.locator('#deny [data-mwt]').evaluate(e=>getComputedStyle(e).display),'inline');
+ checks.push('lateConsentPortal','consentButtonsAndTabs','noConsentDecision','detailsRevealAfterStart','buttonNodeAndEventPreserved','compactButtonLayout');
+ await page.evaluate(()=>document.querySelector('#CybotCookiebotDialog').remove());
+ await page.evaluate(()=>document.querySelector('#shadow-host').attachShadow({mode:'open'}).innerHTML='<p id=shadow-text>Late attached component text should translate without clicking again.</p>');
+ await page.locator('#shadow-host #shadow-text [data-mwt=translation]').waitFor({timeout:7000});
+ await page.evaluate(()=>{const p=document.createElement('p');p.id='shadow-added';p.textContent='More content arrived inside the existing open component.';document.querySelector('#shadow-host').shadowRoot.append(p);});
+ await page.locator('#shadow-host #shadow-added [data-mwt=translation]').waitFor();checks.push('lateOpenShadowRoot','mutationInsideShadow');
+ await page.evaluate(()=>{document.querySelector('#scroller').scrollTop=3400;});await page.locator('#inner [data-mwt=translation]').waitFor();checks.push('innerScrollerDiscovery');
+ const count=await page.evaluate(()=>window.calls.filter(m=>m.type==='text').length);
+ await page.evaluate(()=>{const p=document.querySelector('#regular');p.textContent='Ordinary semantic paragraphs still translate normally.';});
+ await page.locator('#regular [data-mwt=translation]').waitFor();assert.equal(await page.evaluate(()=>window.calls.filter(m=>m.type==='text').length),count);checks.push('sameTextRerenderNoRequest');
+ await page.evaluate(()=>{history.pushState({},'', '/next');document.querySelector('main').innerHTML='<h1>Client side next page</h1><div id=spa>Newly replaced page content keeps the already activated translation session.</div>';});
+ await page.locator('#spa [data-mwt=translation]').waitFor();assert.equal(await page.evaluate(()=>window.calls.filter(m=>m.type==='webStart').length),1);checks.push('spaReplacedContent','sameBatchAcrossRoute');
+ await page.evaluate(()=>{window.hold=true;const p=document.createElement('p');p.id='race';p.textContent='Old pending content must not be inserted after replacement.';document.querySelector('main').prepend(p);});
+ await page.waitForFunction(()=>window.pending.length>0);
+ await page.evaluate(()=>{document.querySelector('#race').textContent='Replacement content must receive only its own translation.';window.hold=false;window.pending.splice(0).forEach(r=>r());});
+ await page.locator('#race [data-mwt=translation]').waitFor();assert.match(await page.locator('#race [data-mwt]').textContent(),/Replacement content/);assert.equal(await page.locator('#race [data-mwt]').count(),1);checks.push('lateResponseIdentityGuard');
+ await page.evaluate(()=>{document.body.innerHTML='<main><p id=body-replaced>The entire body was replaced by the application and remains observable.</p></main>';});
+ await page.locator('#body-replaced [data-mwt=translation]').waitFor();checks.push('bodyReplacementObserver');
+ const stable=await page.evaluate(()=>window.calls.filter(m=>m.type==='text').length);await page.waitForTimeout(1800);assert.equal(await page.evaluate(()=>window.calls.filter(m=>m.type==='text').length),stable);checks.push('stableDOMNoRepeatRequests');
+ await page.screenshot({path:'.local/web-dynamic-fixed.png'});
+ await page.evaluate(()=>{window.web.restore();const p=document.createElement('p');p.id='paused';p.textContent='User restored the page so this content must not automatically call a service.';document.querySelector('main').append(p);});
+ await page.waitForTimeout(250);assert.equal(await page.locator('[data-mwt=translation]').count(),0);assert.equal(await page.evaluate(()=>window.calls.filter(m=>m.type==='text').length),stable);checks.push('restoreStopsDiscoveryRequests');
+ const report={checks,count:checks.length,model:'mock',requests:stable,realSiteClaim:false};await writeFile('.local/web-dynamic-report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+}finally{await browser.close();}
