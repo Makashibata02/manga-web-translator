@@ -6,7 +6,7 @@ Chrome 网页、漫画和图片翻译插件，目前支持 Windows 10/11 x64。
 
 ## 翻译效果
 
-下面是漫译在实际页面上的翻译前后对比，使用免费 Bing。点击图片可放大。
+下面是实际页面的翻译前后对比。网页和论文使用免费 Bing，漫画取自已有翻译任务。点击图片可放大。
 
 ### WSJ 网页
 
@@ -23,6 +23,14 @@ Chrome 网页、漫画和图片翻译插件，目前支持 Windows 10/11 x64。
 | 翻译前 | 翻译后 |
 | --- | --- |
 | ![arXiv 英文正文](docs/images/arxiv-before.jpg) | ![arXiv 双语正文](docs/images/arxiv-after.jpg) |
+
+### 日文漫画
+
+《忌王の花嫁》第11话（松本花／コミックトレイル），同一页原图与译图对照。中文默认竖排，列从右往左。[原章节](https://comic-trail.com/episode/12207421984055325331)
+
+| 翻译前 | 翻译后 |
+| --- | --- |
+| ![日文漫画原图](docs/images/manga-before.jpg) | ![漫画中文竖排译图](docs/images/manga-after.jpg) |
 
 ## 安装
 
