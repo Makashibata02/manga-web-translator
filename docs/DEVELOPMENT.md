@@ -49,7 +49,7 @@ prepare_models 根据固定清单验证已有文件或下载到临时文件，SH
 
 ```powershell
 uv run python -m scripts.docs_samples
-node scripts/docs_screenshots.mjs
+node scripts/docs_screenshots.mjs # 演示截图写入 .local/demo-screenshots，不用于 README
 ```
 
 它们使用原创气泡与本地演示文本、模拟连接，不调用模型。生产扩展重新由 npm run build 构建，不能复制 .local/ 中的测试扩展作发布物。
